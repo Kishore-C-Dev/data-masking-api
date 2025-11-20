@@ -1,0 +1,52 @@
+masking:
+  rules:
+    # XML-based masking rules
+    - service: "payment-service"
+      type: "xml"
+      attributes:
+        - xpath: "//AccountNumber"
+        - xpath: "//BankAccount/Number"
+        - xpath: "//CreditCard/CardNumber"
+        - xpath: "//Transaction/AccountId"
+
+    - service: "banking-service"
+      type: "xml"
+      attributes:
+        - xpath: "//Customer/Account"
+        - xpath: "//Payment/SourceAccount"
+        - xpath: "//Payment/DestinationAccount"
+
+    # JSON-based masking rules
+    - service: "account-service"
+      type: "json"
+      attributes:
+        - jsonpath: "$.account.accountNumber"
+        - jsonpath: "$.customer.bankAccount"
+        - jsonpath: "$.payment.sourceAccount"
+        - jsonpath: "$.payment.destinationAccount"
+
+    - service: "user-service"
+      type: "json"
+      attributes:
+        - jsonpath: "$.user.creditCard"
+        - jsonpath: "$.user.bankAccountNumber"
+        - jsonpath: "$.transaction.accountId"
+
+    # Fixed-length string masking rules
+    - service: "legacy-mainframe"
+      type: "fixed"
+      attributes:
+        - start: 10
+          end: 26
+        - start: 50
+          end: 66
+        - start: 100
+          end: 116
+
+    - service: "legacy-batch"
+      type: "fixed"
+      attributes:
+        - start: 0
+          end: 16
+        - start: 30
+          end: 46
