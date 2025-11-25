@@ -10,6 +10,8 @@ public class MaskingRequest {
     @NotBlank(message = "payload_txt is required")
     private String payload_txt;
 
+    private String xmlSubtype;  // Optional - for carrying detected subtype info
+
     public MaskingRequest() {
     }
 
@@ -32,5 +34,13 @@ public class MaskingRequest {
 
     public void setPayload_txt(String payload_txt) {
         this.payload_txt = payload_txt;
+    }
+
+    public String getXmlSubtype() {
+        return xmlSubtype;
+    }
+
+    public void setXmlSubtype(String xmlSubtype) {
+        this.xmlSubtype = xmlSubtype;
     }
 }

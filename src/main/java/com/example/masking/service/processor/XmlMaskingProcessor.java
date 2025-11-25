@@ -24,16 +24,42 @@ public class XmlMaskingProcessor implements MaskingProcessor {
 
     @Override
     public String mask(String payload, List<MaskingAttribute> attributes) {
+        return maskWithNamespace(payload, attributes, null);
+    }
+
+    /**
+     * Masks XML payload with namespace-aware processing.
+     *
+     * @param payload XML payload string
+     * @param attributes List of masking attributes (XPath expressions)
+     * @param namespaceUri The xmlns namespace URI
+     * @return Masked XML payload
+     */
+    public String maskWithNamespace(String payload, List<MaskingAttribute> attributes, String namespaceUri) {
         try {
+            // Enable namespace awareness
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document document = builder.parse(new ByteArrayInputStream(payload.getBytes()));
 
             XPath xpath = XPathFactory.newInstance().newXPath();
 
+            // Set up namespace context if namespace URI is provided
+            if (namespaceUri != null && !namespaceUri.isEmpty()) {
+                SimpleNamespaceContext nsContext = new SimpleNamespaceContext();
+                nsContext.bindNamespaceUri("ns", namespaceUri);
+                xpath.setNamespaceContext(nsContext);
+            }
+
             for (MaskingAttribute attribute : attributes) {
                 if (attribute.getXpath() != null) {
-                    NodeList nodes = (NodeList) xpath.evaluate(attribute.getXpath(), document, XPathConstants.NODESET);
+                    NodeList nodes = (NodeList) xpath.evaluate(
+                            attribute.getXpath(),
+                            document,
+                            XPathConstants.NODESET
+                    );
 
                     for (int i = 0; i < nodes.getLength(); i++) {
                         Node node = nodes.item(i);

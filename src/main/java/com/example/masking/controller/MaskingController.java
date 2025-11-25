@@ -36,6 +36,9 @@ public class MaskingController {
 
             String maskedPayload = dataMaskingService.maskPayload(request.getPayload_txt(), detectedType);
 
+            // Get detected subtype if available
+            String detectedSubtype = dataMaskingService.getLastDetectedSubtype();
+
             long endTime = System.currentTimeMillis();
             long processingTime = endTime - startTime;
 
@@ -47,6 +50,7 @@ public class MaskingController {
                     detectedType.name(),
                     processingTime
             );
+            response.setDetected_subtype(detectedSubtype);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

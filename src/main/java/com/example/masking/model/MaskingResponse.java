@@ -5,6 +5,7 @@ public class MaskingResponse {
     private String transaction_id;
     private String masked_payload;
     private String payload_type;
+    private String detected_subtype;  // NEW: XML subtype (e.g., "pain.013", "camt.054")
     private Long processing_time_ms;
 
     public MaskingResponse() {
@@ -45,6 +46,14 @@ public class MaskingResponse {
 
     public void setPayload_type(String payload_type) {
         this.payload_type = payload_type;
+    }
+
+    public String getDetected_subtype() {
+        return detected_subtype;
+    }
+
+    public void setDetected_subtype(String detected_subtype) {
+        this.detected_subtype = detected_subtype;
     }
 
     public Long getProcessing_time_ms() {

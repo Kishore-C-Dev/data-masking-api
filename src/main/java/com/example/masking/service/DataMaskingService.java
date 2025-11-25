@@ -28,6 +28,9 @@ public class DataMaskingService {
     private final DefaultMaskingProcessor defaultMaskingProcessor;
     private final MaskingConfig maskingConfig;
 
+    // Store last detected subtype for retrieval by controller
+    private ThreadLocal<String> lastDetectedSubtype = new ThreadLocal<>();
+
     public DataMaskingService(PayloadTypeDetector payloadTypeDetector,
                               XmlMaskingProcessor xmlMaskingProcessor,
                               JsonMaskingProcessor jsonMaskingProcessor,
@@ -45,6 +48,26 @@ public class DataMaskingService {
     public String maskPayload(String payload, PayloadType detectedType) {
         log.info("Masking payload of type: {}", detectedType);
 
+        String detectedNamespace = null;
+
+        // Detect XML subtype if applicable
+        if (detectedType == PayloadType.XML || payload.trim().startsWith("<")) {
+            PayloadType xmlSubtype = payloadTypeDetector.detectXmlSubtype(
+                    payload,
+                    maskingConfig.getNamespaceMappings()
+            );
+
+            if (xmlSubtype != PayloadType.XML) {
+                detectedType = xmlSubtype;
+                // Extract namespace for XPath processing
+                detectedNamespace = payloadTypeDetector.extractNamespace(payload);
+                log.info("Detected XML subtype: {} with namespace: {}", xmlSubtype, detectedNamespace);
+            }
+        }
+
+        // Store detected type for controller to retrieve
+        lastDetectedSubtype.set(detectedType.name());
+
         List<MaskingAttribute> attributes = getAttributesForType(detectedType);
 
         if (attributes.isEmpty()) {
@@ -53,6 +76,12 @@ public class DataMaskingService {
         }
 
         MaskingProcessor processor = getProcessor(detectedType);
+
+        // Pass namespace to XML processor if detected
+        if (processor instanceof XmlMaskingProcessor && detectedNamespace != null) {
+            return ((XmlMaskingProcessor) processor).maskWithNamespace(payload, attributes, detectedNamespace);
+        }
+
         return processor.mask(payload, attributes);
     }
 
@@ -60,11 +89,16 @@ public class DataMaskingService {
         return payloadTypeDetector.detectType(payload);
     }
 
+    public String getLastDetectedSubtype() {
+        return lastDetectedSubtype.get();
+    }
+
     private List<MaskingAttribute> getAttributesForType(PayloadType type) {
         List<MaskingAttribute> allAttributes = new ArrayList<>();
 
         if (maskingConfig.getRules() != null) {
             for (MaskingRule rule : maskingConfig.getRules()) {
+                // Match on type
                 if (rule.getType() != null && rule.getType().equalsIgnoreCase(type.name())) {
                     if (rule.getAttributes() != null) {
                         allAttributes.addAll(rule.getAttributes());
@@ -77,7 +111,8 @@ public class DataMaskingService {
     }
 
     private MaskingProcessor getProcessor(PayloadType type) {
-        if (type == PayloadType.XML) {
+        // Check if it's any XML type (starts with XML)
+        if (type.name().startsWith("XML")) {
             return xmlMaskingProcessor;
         } else if (type == PayloadType.JSON) {
             return jsonMaskingProcessor;

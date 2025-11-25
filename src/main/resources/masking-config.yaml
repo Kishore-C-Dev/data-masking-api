@@ -1,40 +1,62 @@
 masking:
+  # Namespace to type mappings
+  # When xmlns contains the pattern, the PayloadType becomes XML_<PATTERN_UPPERCASE>
+  # Example: pattern "pain.013" -> PayloadType.XML_PAIN_013
+  namespaceMappings:
+    - pattern: "pain.013"
+    - pattern: "pain.014"
+    - pattern: "camt.035"
+    - pattern: "camt.054"
+
   rules:
-    # XML-based masking rules
-    - service: "payment-service"
-      type: "xml"
+    # Generic XML rules (fallback for non-namespaced XML)
+    - type: "xml"
       attributes:
         - xpath: "//AccountNumber"
         - xpath: "//BankAccount/Number"
         - xpath: "//CreditCard/CardNumber"
         - xpath: "//Transaction/AccountId"
 
-    - service: "banking-service"
-      type: "xml"
+    # ISO 20022 pain.013 (Creditor Payment Activation Request)
+    - type: "xml_pain_013"
       attributes:
-        - xpath: "//Customer/Account"
-        - xpath: "//Payment/SourceAccount"
-        - xpath: "//Payment/DestinationAccount"
+        - xpath: "//ns:CdtrPmtActvtnReq/ns:PmtInf/ns:CdtrAcct/ns:Id/ns:IBAN"
+        - xpath: "//ns:DbtrAcct/ns:Id/ns:IBAN"
+        - xpath: "//ns:CdtrAcct/ns:Id/ns:Othr/ns:Id"
+
+    # ISO 20022 pain.014 (Creditor Payment Activation Request Status Report)
+    - type: "xml_pain_014"
+      attributes:
+        - xpath: "//ns:OrgnlPmtInfAndSts/ns:OrgnlPmtInfId"
+        - xpath: "//ns:CdtrAcct/ns:Id/ns:IBAN"
+
+    # ISO 20022 camt.035 (Proprietary Format Investigation)
+    - type: "xml_camt_035"
+      attributes:
+        - xpath: "//ns:Case/ns:Id"
+        - xpath: "//ns:Undrlyg/ns:Initn/ns:OrgnlGrpInf/ns:OrgnlMsgId"
+
+    # ISO 20022 camt.054 (Bank to Customer Debit Credit Notification)
+    - type: "xml_camt_054"
+      attributes:
+        - xpath: "//ns:BkToCstmrDbtCdtNtfctn/ns:Ntfctn/ns:Acct/ns:Id/ns:IBAN"
+        - xpath: "//ns:RltdAcct/ns:Id/ns:IBAN"
+        - xpath: "//ns:Ntry/ns:NtryDtls/ns:TxDtls/ns:RltdPties/ns:DbtrAcct/ns:Id/ns:IBAN"
+        - xpath: "//ns:Ntry/ns:NtryDtls/ns:TxDtls/ns:RltdPties/ns:CdtrAcct/ns:Id/ns:IBAN"
 
     # JSON-based masking rules
-    - service: "account-service"
-      type: "json"
+    - type: "json"
       attributes:
         - jsonpath: "$.account.accountNumber"
         - jsonpath: "$.customer.bankAccount"
         - jsonpath: "$.payment.sourceAccount"
         - jsonpath: "$.payment.destinationAccount"
-
-    - service: "user-service"
-      type: "json"
-      attributes:
         - jsonpath: "$.user.creditCard"
         - jsonpath: "$.user.bankAccountNumber"
         - jsonpath: "$.transaction.accountId"
 
     # Fixed-length string masking rules - MTSFTR format (starts with *FTR)
-    - service: "mts-ftr-mainframe"
-      type: "mtsftr"
+    - type: "mtsftr"
       attributes:
         - start: 10
           end: 26
@@ -44,8 +66,7 @@ masking:
           end: 116
 
     # Fixed-length string masking rules - MTSADM format (starts with *ADM)
-    - service: "mts-adm-mainframe"
-      type: "mtsadm"
+    - type: "mtsadm"
       attributes:
         - start: 15
           end: 31
@@ -53,12 +74,9 @@ masking:
           end: 76
 
     # Fixed-length string masking rules - MFFIXED format (starts with ACAI)
-    - service: "mainframe-acai"
-      type: "mffixed"
+    - type: "mffixed"
       attributes:
         - start: 20
           end: 36
         - start: 80
           end: 96
-
-    # NOTE: Generic FIXED type removed - will use default processor (auto-detect 10-14 digit numbers)

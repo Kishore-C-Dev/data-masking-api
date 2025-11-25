@@ -4,25 +4,15 @@ import java.util.List;
 
 public class MaskingRule {
 
-    private String service;
     private String type;
     private List<MaskingAttribute> attributes;
 
     public MaskingRule() {
     }
 
-    public MaskingRule(String service, String type, List<MaskingAttribute> attributes) {
-        this.service = service;
+    public MaskingRule(String type, List<MaskingAttribute> attributes) {
         this.type = type;
         this.attributes = attributes;
-    }
-
-    public String getService() {
-        return service;
-    }
-
-    public void setService(String service) {
-        this.service = service;
     }
 
     public String getType() {
