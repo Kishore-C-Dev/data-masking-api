@@ -4,35 +4,41 @@ import com.example.masking.model.MaskingAttribute;
 import com.example.masking.model.MaskingConfig;
 import com.example.masking.model.MaskingRule;
 import com.example.masking.model.PayloadType;
+import com.example.masking.service.processor.DefaultMaskingProcessor;
 import com.example.masking.service.processor.FixedLengthMaskingProcessor;
 import com.example.masking.service.processor.JsonMaskingProcessor;
 import com.example.masking.service.processor.MaskingProcessor;
 import com.example.masking.service.processor.XmlMaskingProcessor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@Slf4j
 public class DataMaskingService {
+
+    private static final Logger log = LoggerFactory.getLogger(DataMaskingService.class);
 
     private final PayloadTypeDetector payloadTypeDetector;
     private final XmlMaskingProcessor xmlMaskingProcessor;
     private final JsonMaskingProcessor jsonMaskingProcessor;
     private final FixedLengthMaskingProcessor fixedLengthMaskingProcessor;
+    private final DefaultMaskingProcessor defaultMaskingProcessor;
     private final MaskingConfig maskingConfig;
 
     public DataMaskingService(PayloadTypeDetector payloadTypeDetector,
                               XmlMaskingProcessor xmlMaskingProcessor,
                               JsonMaskingProcessor jsonMaskingProcessor,
                               FixedLengthMaskingProcessor fixedLengthMaskingProcessor,
+                              DefaultMaskingProcessor defaultMaskingProcessor,
                               MaskingConfig maskingConfig) {
         this.payloadTypeDetector = payloadTypeDetector;
         this.xmlMaskingProcessor = xmlMaskingProcessor;
         this.jsonMaskingProcessor = jsonMaskingProcessor;
         this.fixedLengthMaskingProcessor = fixedLengthMaskingProcessor;
+        this.defaultMaskingProcessor = defaultMaskingProcessor;
         this.maskingConfig = maskingConfig;
     }
 
@@ -42,8 +48,8 @@ public class DataMaskingService {
         List<MaskingAttribute> attributes = getAttributesForType(detectedType);
 
         if (attributes.isEmpty()) {
-            log.warn("No masking rules found for payload type: {}. Returning original payload.", detectedType);
-            return payload;
+            log.warn("No masking rules found for payload type: {}. Using default masking (10-14 consecutive digits).", detectedType);
+            return defaultMaskingProcessor.mask(payload, null);
         }
 
         MaskingProcessor processor = getProcessor(detectedType);
@@ -71,10 +77,13 @@ public class DataMaskingService {
     }
 
     private MaskingProcessor getProcessor(PayloadType type) {
-        return switch (type) {
-            case XML -> xmlMaskingProcessor;
-            case JSON -> jsonMaskingProcessor;
-            case FIXED -> fixedLengthMaskingProcessor;
-        };
+        if (type == PayloadType.XML) {
+            return xmlMaskingProcessor;
+        } else if (type == PayloadType.JSON) {
+            return jsonMaskingProcessor;
+        } else {
+            // All fixed-length types use the same processor
+            return fixedLengthMaskingProcessor;
+        }
     }
 }

@@ -1,15 +1,23 @@
 package com.example.masking.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.util.List;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class MaskingConfig {
 
     private List<MaskingRule> rules;
+
+    public MaskingConfig() {
+    }
+
+    public MaskingConfig(List<MaskingRule> rules) {
+        this.rules = rules;
+    }
+
+    public List<MaskingRule> getRules() {
+        return rules;
+    }
+
+    public void setRules(List<MaskingRule> rules) {
+        this.rules = rules;
+    }
 }

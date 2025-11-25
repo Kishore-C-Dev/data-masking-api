@@ -4,16 +4,19 @@ import com.example.masking.model.MaskingRequest;
 import com.example.masking.model.MaskingResponse;
 import com.example.masking.model.PayloadType;
 import com.example.masking.service.DataMaskingService;
-import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+
 @RestController
 @RequestMapping("/api")
-@Slf4j
 public class MaskingController {
+
+    private static final Logger log = LoggerFactory.getLogger(MaskingController.class);
 
     private final DataMaskingService dataMaskingService;
 
@@ -25,16 +28,24 @@ public class MaskingController {
     public ResponseEntity<MaskingResponse> maskPayload(@Valid @RequestBody MaskingRequest request) {
         log.info("Received masking request for transaction_id: {}", request.getTransaction_id());
 
+        long startTime = System.currentTimeMillis();
+
         try {
             PayloadType detectedType = dataMaskingService.detectPayloadType(request.getPayload_txt());
             log.info("Detected payload type: {}", detectedType);
 
             String maskedPayload = dataMaskingService.maskPayload(request.getPayload_txt(), detectedType);
 
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+
+            log.info("Masking completed for transaction_id: {} in {} ms", request.getTransaction_id(), processingTime);
+
             MaskingResponse response = new MaskingResponse(
                     request.getTransaction_id(),
                     maskedPayload,
-                    detectedType.name()
+                    detectedType.name(),
+                    processingTime
             );
 
             return ResponseEntity.ok(response);

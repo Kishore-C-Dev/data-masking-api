@@ -32,9 +32,9 @@ masking:
         - jsonpath: "$.user.bankAccountNumber"
         - jsonpath: "$.transaction.accountId"
 
-    # Fixed-length string masking rules
-    - service: "legacy-mainframe"
-      type: "fixed"
+    # Fixed-length string masking rules - MTSFTR format (starts with *FTR)
+    - service: "mts-ftr-mainframe"
+      type: "mtsftr"
       attributes:
         - start: 10
           end: 26
@@ -43,10 +43,22 @@ masking:
         - start: 100
           end: 116
 
-    - service: "legacy-batch"
-      type: "fixed"
+    # Fixed-length string masking rules - MTSADM format (starts with *ADM)
+    - service: "mts-adm-mainframe"
+      type: "mtsadm"
       attributes:
-        - start: 0
-          end: 16
-        - start: 30
-          end: 46
+        - start: 15
+          end: 31
+        - start: 60
+          end: 76
+
+    # Fixed-length string masking rules - MFFIXED format (starts with ACAI)
+    - service: "mainframe-acai"
+      type: "mffixed"
+      attributes:
+        - start: 20
+          end: 36
+        - start: 80
+          end: 96
+
+    # NOTE: Generic FIXED type removed - will use default processor (auto-detect 10-14 digit numbers)

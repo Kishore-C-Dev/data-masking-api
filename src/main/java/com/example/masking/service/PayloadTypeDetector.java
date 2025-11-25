@@ -24,7 +24,20 @@ public class PayloadTypeDetector {
             return PayloadType.JSON;
         }
 
-        // Default to fixed-length
+        // Check for specific fixed-length formats by starting characters
+        if (trimmed.startsWith("*FTR")) {
+            return PayloadType.MTSFTR;
+        }
+
+        if (trimmed.startsWith("*ADM")) {
+            return PayloadType.MTSADM;
+        }
+
+        if (trimmed.startsWith("ACAI")) {
+            return PayloadType.MFFIXED;
+        }
+
+        // Default to generic fixed-length
         return PayloadType.FIXED;
     }
 }
