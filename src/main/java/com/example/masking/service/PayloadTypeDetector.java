@@ -57,21 +57,22 @@ public class PayloadTypeDetector {
     /**
      * Detects XML subtype by examining xmlns attributes in the root element.
      * Uses lightweight regex parsing to avoid full DOM overhead during detection phase.
+     * Returns a string subtype identifier instead of requiring PayloadType enum updates.
      *
      * @param payload XML payload string
      * @param mappings Configured namespace mappings
-     * @return PayloadType matching the xmlns pattern, or PayloadType.XML if no match
+     * @return String subtype identifier (e.g., "xml_pain_013") or null if no match
      */
-    public PayloadType detectXmlSubtype(String payload, List<NamespaceMapping> mappings) {
+    public String detectXmlSubtype(String payload, List<NamespaceMapping> mappings) {
         if (payload == null || mappings == null || mappings.isEmpty()) {
-            return PayloadType.XML;
+            return null;
         }
 
         try {
             // 1. Extract root element and attributes using regex (avoid full DOM parsing)
             Matcher matcher = XML_ROOT_PATTERN.matcher(payload.trim());
             if (!matcher.find()) {
-                return PayloadType.XML; // Not valid XML or no root element
+                return null; // Not valid XML or no root element
             }
 
             String rootAttributes = matcher.group(2);
@@ -85,36 +86,29 @@ public class PayloadTypeDetector {
 
                 for (NamespaceMapping mapping : mappings) {
                     if (namespaceUri.contains(mapping.getPattern())) {
-                        // Convert pattern to PayloadType enum (e.g., "pain.013" -> XML_PAIN_013)
-                        return patternToPayloadType(mapping.getPattern(), namespaceUri);
+                        // Convert pattern to string type identifier (e.g., "pain.013" -> "xml_pain_013")
+                        return patternToTypeIdentifier(mapping.getPattern());
                     }
                 }
             }
         } catch (Exception e) {
-            // If regex parsing fails, return generic XML
-            return PayloadType.XML;
+            // If regex parsing fails, return null
+            return null;
         }
 
-        return PayloadType.XML; // No matching namespace found
+        return null; // No matching namespace found
     }
 
     /**
-     * Converts a pattern to its corresponding PayloadType enum.
+     * Converts a pattern to its corresponding type identifier string.
      *
-     * @param pattern The pattern that matched (e.g., "pain.013", "camt.054")
-     * @param namespaceUri The full namespace URI (for logging/debugging)
-     * @return Corresponding PayloadType enum
+     * @param pattern The pattern that matched (e.g., "pain.013", "camt.054", "payment_request")
+     * @return Type identifier string (e.g., "xml_pain_013", "xml_camt_054", "xml_payment_request")
      */
-    private PayloadType patternToPayloadType(String pattern, String namespaceUri) {
-        // Convert pattern like "pain.013" to enum name "XML_PAIN_013"
-        String enumName = "XML_" + pattern.replace(".", "_").toUpperCase();
-
-        try {
-            return PayloadType.valueOf(enumName);
-        } catch (IllegalArgumentException e) {
-            // If no matching enum exists, fall back to generic XML
-            return PayloadType.XML;
-        }
+    private String patternToTypeIdentifier(String pattern) {
+        // Convert pattern like "pain.013" to type identifier "xml_pain_013"
+        // Replace dots with underscores and convert to lowercase
+        return "xml_" + pattern.replace(".", "_").toLowerCase();
     }
 
     /**

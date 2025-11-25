@@ -7,6 +7,8 @@ masking:
     - pattern: "pain.014"
     - pattern: "camt.035"
     - pattern: "camt.054"
+    - pattern: "payment_request"
+    - pattern: "invoice"
 
   rules:
     # Generic XML rules (fallback for non-namespaced XML)
@@ -43,6 +45,21 @@ masking:
         - xpath: "//ns:RltdAcct/ns:Id/ns:IBAN"
         - xpath: "//ns:Ntry/ns:NtryDtls/ns:TxDtls/ns:RltdPties/ns:DbtrAcct/ns:Id/ns:IBAN"
         - xpath: "//ns:Ntry/ns:NtryDtls/ns:TxDtls/ns:RltdPties/ns:CdtrAcct/ns:Id/ns:IBAN"
+
+    # Custom payment_request namespace
+    - type: "xml_payment_request"
+      attributes:
+        - xpath: "//ns:PaymentRequest/ns:Account/ns:AccountNumber"
+        - xpath: "//ns:SourceAccount/ns:Number"
+        - xpath: "//ns:DestinationAccount/ns:Number"
+        - xpath: "//ns:Card/ns:CardNumber"
+
+    # Custom invoice namespace
+    - type: "xml_invoice"
+      attributes:
+        - xpath: "//ns:Invoice/ns:BillingAccount"
+        - xpath: "//ns:PaymentDetails/ns:AccountNumber"
+        - xpath: "//ns:Customer/ns:TaxId"
 
     # JSON-based masking rules
     - type: "json"

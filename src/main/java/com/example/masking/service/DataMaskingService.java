@@ -49,29 +49,37 @@ public class DataMaskingService {
         log.info("Masking payload of type: {}", detectedType);
 
         String detectedNamespace = null;
+        String xmlSubtype = null;
 
         // Detect XML subtype if applicable
         if (detectedType == PayloadType.XML || payload.trim().startsWith("<")) {
-            PayloadType xmlSubtype = payloadTypeDetector.detectXmlSubtype(
+            xmlSubtype = payloadTypeDetector.detectXmlSubtype(
                     payload,
                     maskingConfig.getNamespaceMappings()
             );
 
-            if (xmlSubtype != PayloadType.XML) {
-                detectedType = xmlSubtype;
+            if (xmlSubtype != null) {
                 // Extract namespace for XPath processing
                 detectedNamespace = payloadTypeDetector.extractNamespace(payload);
                 log.info("Detected XML subtype: {} with namespace: {}", xmlSubtype, detectedNamespace);
             }
         }
 
-        // Store detected type for controller to retrieve
-        lastDetectedSubtype.set(detectedType.name());
+        // Store detected subtype for controller to retrieve
+        if (xmlSubtype != null) {
+            lastDetectedSubtype.set(xmlSubtype.toUpperCase());
+        } else {
+            lastDetectedSubtype.set(detectedType.name());
+        }
 
-        List<MaskingAttribute> attributes = getAttributesForType(detectedType);
+        // Get attributes using subtype if available, otherwise use base type
+        List<MaskingAttribute> attributes = xmlSubtype != null ?
+                getAttributesForTypeString(xmlSubtype) :
+                getAttributesForType(detectedType);
 
         if (attributes.isEmpty()) {
-            log.warn("No masking rules found for payload type: {}. Using default masking (10-14 consecutive digits).", detectedType);
+            log.warn("No masking rules found for payload type: {}. Using default masking (10-14 consecutive digits).",
+                    xmlSubtype != null ? xmlSubtype : detectedType);
             return defaultMaskingProcessor.mask(payload, null);
         }
 
@@ -94,12 +102,16 @@ public class DataMaskingService {
     }
 
     private List<MaskingAttribute> getAttributesForType(PayloadType type) {
+        return getAttributesForTypeString(type.name());
+    }
+
+    private List<MaskingAttribute> getAttributesForTypeString(String typeString) {
         List<MaskingAttribute> allAttributes = new ArrayList<>();
 
         if (maskingConfig.getRules() != null) {
             for (MaskingRule rule : maskingConfig.getRules()) {
-                // Match on type
-                if (rule.getType() != null && rule.getType().equalsIgnoreCase(type.name())) {
+                // Match on type (case-insensitive)
+                if (rule.getType() != null && rule.getType().equalsIgnoreCase(typeString)) {
                     if (rule.getAttributes() != null) {
                         allAttributes.addAll(rule.getAttributes());
                     }
