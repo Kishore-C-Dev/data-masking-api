@@ -28,7 +28,8 @@ public class DefaultMaskingProcessor implements MaskingProcessor {
             return payload;
         }
 
-        StringBuffer maskedPayload = new StringBuffer();
+        // Use StringBuilder instead of StringBuffer (no need for synchronization)
+        StringBuilder maskedPayload = new StringBuilder();
         Matcher matcher = ACCOUNT_NUMBER_PATTERN.matcher(payload);
 
         while (matcher.find()) {

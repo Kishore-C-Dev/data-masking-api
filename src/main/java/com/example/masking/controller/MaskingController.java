@@ -56,6 +56,9 @@ public class MaskingController {
         } catch (Exception e) {
             log.error("Error processing masking request: {}", e.getMessage(), e);
             throw new RuntimeException("Error processing masking request: " + e.getMessage());
+        } finally {
+            // Clean up ThreadLocal to prevent memory leaks in thread pools
+            dataMaskingService.clearThreadLocalState();
         }
     }
 

@@ -22,6 +22,20 @@ import java.util.List;
 @Component
 public class XmlMaskingProcessor implements MaskingProcessor {
 
+    // Cache expensive factories as static final (thread-safe singletons)
+    private static final DocumentBuilderFactory DOCUMENT_BUILDER_FACTORY;
+    private static final TransformerFactory TRANSFORMER_FACTORY;
+
+    static {
+        DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
+        DOCUMENT_BUILDER_FACTORY.setNamespaceAware(true);
+
+        TRANSFORMER_FACTORY = TransformerFactory.newInstance();
+    }
+
+    // Cache XPathFactory instance (thread-safe)
+    private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
+
     @Override
     public String mask(String payload, List<MaskingAttribute> attributes) {
         return maskWithNamespace(payload, attributes, null);
@@ -37,14 +51,12 @@ public class XmlMaskingProcessor implements MaskingProcessor {
      */
     public String maskWithNamespace(String payload, List<MaskingAttribute> attributes, String namespaceUri) {
         try {
-            // Enable namespace awareness
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-
-            DocumentBuilder builder = factory.newDocumentBuilder();
+            // Use cached DocumentBuilderFactory
+            DocumentBuilder builder = DOCUMENT_BUILDER_FACTORY.newDocumentBuilder();
             Document document = builder.parse(new ByteArrayInputStream(payload.getBytes()));
 
-            XPath xpath = XPathFactory.newInstance().newXPath();
+            // Create XPath instance for this request (XPath.setNamespaceContext is not thread-safe)
+            XPath xpath = XPATH_FACTORY.newXPath();
 
             // Set up namespace context if namespace URI is provided
             if (namespaceUri != null && !namespaceUri.isEmpty()) {
@@ -69,8 +81,8 @@ public class XmlMaskingProcessor implements MaskingProcessor {
                 }
             }
 
-            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-            Transformer transformer = transformerFactory.newTransformer();
+            // Use cached TransformerFactory
+            Transformer transformer = TRANSFORMER_FACTORY.newTransformer();
             StringWriter writer = new StringWriter();
             transformer.transform(new DOMSource(document), new StreamResult(writer));
 

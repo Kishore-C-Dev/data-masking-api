@@ -16,16 +16,16 @@ import java.util.List;
 @Component
 public class JsonMaskingProcessor implements MaskingProcessor {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // Cache JSONPath configuration (immutable, thread-safe)
+    private static final Configuration JSON_PATH_CONFIG = Configuration.builder()
+            .options(Option.SUPPRESS_EXCEPTIONS, Option.DEFAULT_PATH_LEAF_TO_NULL)
+            .build();
 
     @Override
     public String mask(String payload, List<MaskingAttribute> attributes) {
         try {
-            Configuration conf = Configuration.builder()
-                    .options(Option.SUPPRESS_EXCEPTIONS, Option.DEFAULT_PATH_LEAF_TO_NULL)
-                    .build();
-
-            DocumentContext document = JsonPath.using(conf).parse(payload);
+            // Use cached configuration
+            DocumentContext document = JsonPath.using(JSON_PATH_CONFIG).parse(payload);
 
             for (MaskingAttribute attribute : attributes) {
                 if (attribute.getJsonpath() != null) {

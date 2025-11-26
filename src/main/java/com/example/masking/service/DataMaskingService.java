@@ -14,7 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DataMaskingService {
@@ -27,6 +30,9 @@ public class DataMaskingService {
     private final FixedLengthMaskingProcessor fixedLengthMaskingProcessor;
     private final DefaultMaskingProcessor defaultMaskingProcessor;
     private final MaskingConfig maskingConfig;
+
+    // Rule index for O(1) lookup (built at startup)
+    private final Map<String, List<MaskingAttribute>> ruleIndex;
 
     // Store last detected subtype for retrieval by controller
     private ThreadLocal<String> lastDetectedSubtype = new ThreadLocal<>();
@@ -43,6 +49,10 @@ public class DataMaskingService {
         this.fixedLengthMaskingProcessor = fixedLengthMaskingProcessor;
         this.defaultMaskingProcessor = defaultMaskingProcessor;
         this.maskingConfig = maskingConfig;
+
+        // Build rule index at startup for fast O(1) lookups
+        this.ruleIndex = buildRuleIndex(maskingConfig);
+        log.info("Built rule index with {} types", ruleIndex.size());
     }
 
     public String maskPayload(String payload, PayloadType detectedType) {
@@ -101,25 +111,41 @@ public class DataMaskingService {
         return lastDetectedSubtype.get();
     }
 
+    /**
+     * Clears ThreadLocal state to prevent memory leaks in thread pools.
+     * Should be called in finally block after request processing.
+     */
+    public void clearThreadLocalState() {
+        lastDetectedSubtype.remove();
+    }
+
+    /**
+     * Builds an index of masking rules for O(1) lookup performance.
+     * Called once at service initialization.
+     */
+    private Map<String, List<MaskingAttribute>> buildRuleIndex(MaskingConfig config) {
+        Map<String, List<MaskingAttribute>> index = new HashMap<>();
+
+        if (config.getRules() != null) {
+            for (MaskingRule rule : config.getRules()) {
+                if (rule.getType() != null && rule.getAttributes() != null) {
+                    String typeKey = rule.getType().toLowerCase();
+                    index.computeIfAbsent(typeKey, k -> new ArrayList<>())
+                         .addAll(rule.getAttributes());
+                }
+            }
+        }
+
+        return Collections.unmodifiableMap(index);
+    }
+
     private List<MaskingAttribute> getAttributesForType(PayloadType type) {
         return getAttributesForTypeString(type.name());
     }
 
     private List<MaskingAttribute> getAttributesForTypeString(String typeString) {
-        List<MaskingAttribute> allAttributes = new ArrayList<>();
-
-        if (maskingConfig.getRules() != null) {
-            for (MaskingRule rule : maskingConfig.getRules()) {
-                // Match on type (case-insensitive)
-                if (rule.getType() != null && rule.getType().equalsIgnoreCase(typeString)) {
-                    if (rule.getAttributes() != null) {
-                        allAttributes.addAll(rule.getAttributes());
-                    }
-                }
-            }
-        }
-
-        return allAttributes;
+        // Use O(1) index lookup instead of O(N) linear scan
+        return ruleIndex.getOrDefault(typeString.toLowerCase(), Collections.emptyList());
     }
 
     private MaskingProcessor getProcessor(PayloadType type) {
