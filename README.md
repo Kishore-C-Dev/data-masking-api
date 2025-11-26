@@ -6,7 +6,10 @@ A Spring Boot REST API for masking sensitive data (like account numbers, IBANs, 
 
 - **Multi-format Support**: Handles XML, JSON, and fixed-length string payloads
 - **Auto-detection**: Automatically detects payload type
-- **XML Namespace Support**: ISO 20022 message type detection (pain.013, pain.014, camt.035, camt.054) with namespace-aware XPath processing
+- **Dynamic XML Namespace Support**: Configuration-driven XML subtype detection - add new patterns without code changes
+- **ISO 20022 Support**: Built-in support for pain.013, pain.014, camt.035, camt.054 message types
+- **Extensible Architecture**: Add custom XML namespaces by editing YAML config only
+- **Namespace-aware XPath**: Full support for namespaced XML elements with automatic namespace context setup
 - **Configurable Masking**: YAML-based configuration for different payload types
 - **XPath Support**: Extract and mask XML elements using XPath expressions (with namespace support)
 - **JSONPath Support**: Extract and mask JSON fields using JSONPath expressions
@@ -70,13 +73,18 @@ Edit `src/main/resources/masking-config.yaml` to configure masking rules:
 ```yaml
 masking:
   namespaceMappings:
-    - pattern: "pain.013"    # ISO 20022 payment initiation
-    - pattern: "pain.014"    # ISO 20022 payment activation
-    - pattern: "camt.035"    # ISO 20022 proprietary message
-    - pattern: "camt.054"    # ISO 20022 bank to customer debit/credit notification
+    - pattern: "pain.013"        # ISO 20022 payment initiation
+    - pattern: "pain.014"        # ISO 20022 payment activation
+    - pattern: "camt.035"        # ISO 20022 proprietary message
+    - pattern: "camt.054"        # ISO 20022 bank to customer debit/credit notification
+    - pattern: "payment_request" # Custom payment request namespace
+    - pattern: "invoice"         # Custom invoice namespace
 ```
 
-**How it works**: If an XML document's xmlns attribute contains the pattern (e.g., `xmlns="urn:iso:std:iso:20022:tech:xsd:pain.013.001.07"`), the payload type is detected as `XML_PAIN_013`.
+**How it works**:
+- If an XML document's xmlns attribute contains the pattern (e.g., `xmlns="urn:iso:std:iso:20022:tech:xsd:pain.013.001.07"`), the subtype is detected as `XML_PAIN_013`
+- Pattern names are automatically converted to type identifiers: `"pain.013"` → `"xml_pain_013"`, `"invoice"` → `"xml_invoice"`
+- **No Java code changes required** - just add the pattern to the config and restart the application
 
 ### Generic XML Example:
 ```yaml
@@ -106,6 +114,25 @@ masking:
 
 **Note**: For namespaced XML, use the `ns:` prefix in XPath expressions. The namespace context is automatically configured based on the detected xmlns URI.
 
+### Custom XML Namespace Example:
+```yaml
+masking:
+  rules:
+    # Add your custom namespace rule (must match the pattern name)
+    - type: "xml_invoice"
+      attributes:
+        - xpath: "//ns:Invoice/ns:BillingAccount"
+        - xpath: "//ns:PaymentDetails/ns:AccountNumber"
+        - xpath: "//ns:Customer/ns:TaxId"
+
+    - type: "xml_payment_request"
+      attributes:
+        - xpath: "//ns:PaymentRequest/ns:Account/ns:AccountNumber"
+        - xpath: "//ns:SourceAccount/ns:Number"
+```
+
+**Important**: The rule type must match the pattern from namespaceMappings (e.g., pattern `"invoice"` requires rule type `"xml_invoice"`)
+
 ### JSON Example:
 ```yaml
 masking:
@@ -130,6 +157,45 @@ masking:
 
 ### Default Masking:
 If no rules match the detected payload type, the default masking processor automatically masks any sequence of 10-14 consecutive digits in the payload.
+
+## Adding New XML Namespace Patterns
+
+To add support for a new XML namespace pattern **without modifying Java code**:
+
+1. **Add the pattern to namespaceMappings** in `masking-config.yaml`:
+   ```yaml
+   namespaceMappings:
+     - pattern: "my_custom_schema"
+   ```
+
+2. **Add masking rules for the pattern**:
+   ```yaml
+   rules:
+     - type: "xml_my_custom_schema"
+       attributes:
+         - xpath: "//ns:YourElement/ns:SensitiveField"
+   ```
+
+3. **Restart the application** - that's it!
+
+**Example**: Adding a "purchase_order" namespace:
+
+```yaml
+masking:
+  namespaceMappings:
+    - pattern: "purchase_order"
+
+  rules:
+    - type: "xml_purchase_order"
+      attributes:
+        - xpath: "//ns:PurchaseOrder/ns:PaymentInfo/ns:CreditCard"
+        - xpath: "//ns:Vendor/ns:BankAccount"
+```
+
+The system will automatically:
+- Detect XML documents with `xmlns` containing "purchase_order"
+- Report subtype as `XML_PURCHASE_ORDER`
+- Apply the configured XPath masking rules with namespace awareness
 
 ## Example Usage
 
@@ -179,7 +245,7 @@ curl -X POST http://localhost:8080/api/mask \
 }
 ```
 
-### JSON Payload
+### Custom Invoice XML Payload (Dynamic Pattern)
 
 **Request:**
 ```bash
@@ -187,7 +253,7 @@ curl -X POST http://localhost:8080/api/mask \
   -H "Content-Type: application/json" \
   -d '{
     "transaction_id": "TXN003",
-    "payload_txt": "{\"account\":{\"accountNumber\":\"9876543210987654\"}}"
+    "payload_txt": "<?xml version=\"1.0\"?><Invoice xmlns=\"http://example.com/schemas/invoice/v2\"><BillingAccount>1234567890123456</BillingAccount><PaymentDetails><AccountNumber>9876543210987654</AccountNumber></PaymentDetails><Customer><TaxId>5555666677778888</TaxId></Customer></Invoice>"
   }'
 ```
 
@@ -195,6 +261,31 @@ curl -X POST http://localhost:8080/api/mask \
 ```json
 {
   "transaction_id": "TXN003",
+  "masked_payload": "<?xml version=\"1.0\"?><Invoice xmlns=\"http://example.com/schemas/invoice/v2\"><BillingAccount>************3456</BillingAccount><PaymentDetails><AccountNumber>************7654</AccountNumber></PaymentDetails><Customer><TaxId>************8888</TaxId></Customer></Invoice>",
+  "payload_type": "XML",
+  "detected_subtype": "XML_INVOICE",
+  "processing_time_ms": 30
+}
+```
+
+**Note**: The `invoice` pattern was added via configuration only - no Java code changes required!
+
+### JSON Payload
+
+**Request:**
+```bash
+curl -X POST http://localhost:8080/api/mask \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "TXN004",
+    "payload_txt": "{\"account\":{\"accountNumber\":\"9876543210987654\"}}"
+  }'
+```
+
+**Response:**
+```json
+{
+  "transaction_id": "TXN004",
   "masked_payload": "{\"account\":{\"accountNumber\":\"************7654\"}}",
   "payload_type": "JSON",
   "detected_subtype": "JSON",
@@ -209,7 +300,7 @@ curl -X POST http://localhost:8080/api/mask \
 curl -X POST http://localhost:8080/api/mask \
   -H "Content-Type: application/json" \
   -d '{
-    "transaction_id": "TXN004",
+    "transaction_id": "TXN005",
     "payload_txt": "HEADER0001234567890123456MIDDLE0009876543210987654END"
   }'
 ```
@@ -217,7 +308,7 @@ curl -X POST http://localhost:8080/api/mask \
 **Response:**
 ```json
 {
-  "transaction_id": "TXN004",
+  "transaction_id": "TXN005",
   "masked_payload": "HEADER000************3456MIDDLE000************7654END",
   "payload_type": "FIXED",
   "detected_subtype": "FIXED",
@@ -254,7 +345,7 @@ data-masking-api/
 │   │   ├── MaskingRule.java                # Rule model
 │   │   ├── MaskingAttribute.java           # Attribute model
 │   │   ├── NamespaceMapping.java           # Namespace pattern mapping
-│   │   └── PayloadType.java                # Enum for payload types (includes XML subtypes)
+│   │   └── PayloadType.java                # Enum for base payload types (XML, JSON, FIXED)
 │   └── DataMaskingApplication.java         # Main application
 ├── src/main/resources/
 │   ├── application.properties              # Spring Boot config
@@ -267,9 +358,11 @@ data-masking-api/
 The API automatically detects the payload type using the following logic:
 
 1. **XML Detection**: Payloads starting with `<` or `<?xml` are identified as XML
-   - **XML Subtype Detection**: If an xmlns attribute is found in the root element, the API checks against configured namespace patterns
-   - Pattern matching: `xmlns="urn:iso:std:iso:20022:tech:xsd:pain.013.001.07"` → matches pattern `"pain.013"` → returns `XML_PAIN_013`
+   - **Dynamic XML Subtype Detection**: Uses regex-based xmlns pattern matching
+   - Pattern matching: `xmlns="urn:iso:std:iso:20022:tech:xsd:pain.013.001.07"` → matches pattern `"pain.013"` → returns subtype `XML_PAIN_013`
+   - Pattern to type conversion: `"pain.013"` → `"xml_pain_013"`, `"invoice"` → `"xml_invoice"`
    - Falls back to generic `XML` if no pattern matches
+   - **Fully extensible**: Add new patterns in YAML without code changes
 
 2. **JSON Detection**: Payloads starting with `{` or `[` are identified as JSON
 
@@ -278,6 +371,24 @@ The API automatically detects the payload type using the following logic:
    - Falls back to generic `FIXED` for other fixed-length formats
 
 4. **Default Masking**: If no specific rules are configured, the default processor masks 10-14 consecutive digits
+
+## Architecture Highlights
+
+### Dynamic XML Subtype System
+
+Unlike traditional enum-based approaches that require code changes for every new XML type, this API uses a **string-based dynamic detection system**:
+
+- **PayloadType enum** only contains base types: `XML`, `JSON`, `FIXED`, etc.
+- **XML subtypes are detected dynamically** based on YAML configuration
+- **No enum updates needed** - the system converts patterns to type identifiers at runtime
+- **Type identifier generation**: Patterns are normalized to lowercase with underscores (e.g., `"pain.013"` becomes `"xml_pain_013"`)
+- **Rule matching**: Case-insensitive string matching against configured rule types
+
+**Benefits**:
+- Add new ISO 20022 message types without touching Java code
+- Support custom organizational XML schemas through configuration
+- Faster development and deployment cycles
+- Reduced coupling between configuration and code
 
 ## Technologies Used
 
